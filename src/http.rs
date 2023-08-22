@@ -24,6 +24,28 @@ pub mod requests {
         if verbose {
             show_full_http_req();
         }
+
+        writing::explain();
+    }
+
+    pub mod writing {
+        pub fn explain() {
+            println!("An HTTP response request looks like this");
+
+            /* 
+                HTTP-Version Status-Code Reason-Phrase CRLF
+                headers CRLF
+                message-body
+            */
+
+            //first line is a status line w/HTTP version
+            //numeric status code summarizes request result
+            //reason phrase has text description of status code
+
+            //200 is the standard success response, so a successful http request could look like
+                //HTTP/1.1 200 OK \r\n\r\n
+            //Let's respond with this when we get a successful request
+        }
     }
 
     fn show_full_http_req() {
