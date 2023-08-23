@@ -8,6 +8,9 @@ use std::{
 pub const HTTP_OK: &str = "200 OK";
 pub const HTTP_NOT_FOUND: &str = "404 NOT FOUND";
 
+pub const ERR_PAGE: &str = "./routes/404.html";
+
+#[derive(Debug)]
 pub enum HttpMethod {
     GET,
     POST,
@@ -26,7 +29,7 @@ impl HttpMethod {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct HttpRequest {
     pub method: HttpMethod,
     pub uri: String,
@@ -69,31 +72,40 @@ fn handle_connection(mut stream: TcpStream) {
 
     let mut status = HTTP_OK;
 
-    let file = match uri.as_ref() {
-        "/" => String::from("./home.html"),
-        path => {
-            let path = format!("{}.html", &path[1..]);
+    let path = uri_to_path(uri);
 
-            if Path::new(&path).exists() {
-                path
+    let html = path
+        .and_then(|path| {
+            if Path::new(&path).extension().unwrap().ne("html") {
+                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Files must be html"))
             } else {
-                status = HTTP_NOT_FOUND;
-                String::from("./404.html")
+                fs::read_to_string(path)
             }
-        }
-    };
-
-    let html = fs::read_to_string(file).unwrap();
+        })
+        .unwrap_or_else(|_| {
+            status = HTTP_NOT_FOUND;
+            fs::read_to_string(ERR_PAGE.to_string()).unwrap()
+        });
 
     let res = format_response(status, &html);
 
     stream.write_all(res.as_bytes()).unwrap();
 }
 
+fn uri_to_path(uri: String) -> Result<String, std::io::Error> {
+    let path = format!("./routes{uri}");
+
+    let md = fs::metadata(&path)?;
+
+    if path.eq("./routes/") {
+        Ok(path + "init.html")
+    } else {
+        Ok(if md.is_dir() { path + "/init.html" } else { path })
+    }
+}
+
 fn format_response(status: &str, contents: &str) -> String {
     let len = contents.len();
 
-    let response =
-        format!("HTTP/1.1{status}\r\nContent-Length: {len}\r\n\r\n{contents}").to_owned();
-    response
+    format!("HTTP/1.1{status}\r\nContent-Length: {len}\r\n\r\n{contents}").to_owned()
 }
