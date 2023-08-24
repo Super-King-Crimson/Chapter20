@@ -5,20 +5,29 @@ pub mod explanation;
 type Job = Box<dyn FnOnce() + 'static + Send>;
 
 struct Worker {
-    thread: JoinHandle<()>,
+    thread: Option<JoinHandle<()>>,
     id: usize,
 }
 
 impl Worker {
     fn new(reciever: Arc<Mutex<Receiver<Job>>>, id: usize) -> Worker {
         let thread = thread::spawn(move || {
-            let job = reciever.lock().unwrap().recv().unwrap();
+            loop {                
+                let job = match reciever.lock().unwrap().recv() {
+                    Ok(val) => val,
+                    Err(_) => {
+                        println!("Shutting down {id}");
+                        break;
+                    }
+                };
 
-            job();
+                println!("{id} got a job");
+                job();
+            }
         });
 
         Worker {
-            thread,
+            thread: Some(thread),
             id
         }
     }
@@ -26,7 +35,7 @@ impl Worker {
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: Sender<Job>
+    sender: Option<Sender<Job>>
 }
 
 impl ThreadPool {
@@ -39,12 +48,28 @@ impl ThreadPool {
 
         let workers = (0..num_threads).into_iter().map(move |id| Worker::new(rx.clone(), id)).collect();
 
-        ThreadPool { workers, sender: tx}
+        ThreadPool { workers, sender: Some(tx)}
     }
 
     pub fn enter<F>(&mut self, task: F) where
         F: FnOnce() + 'static + Send  
     {
-        self.sender.send(Box::new(task));
+        self.sender.as_ref().unwrap().send(Box::new(task)).unwrap();
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        //Hang up the transmitter thread so receivers stop waiting for messages
+        drop(self.sender.take());
+
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id); 
+
+            //join with the thread to let it finish what it's doing
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
+        }
     }
 }

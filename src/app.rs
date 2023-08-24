@@ -59,7 +59,7 @@ pub fn listen(addr: impl Display + ToSocketAddrs, mut pool: ThreadPool) {
     println!("Listening on {}", addr);
 
     //alright now let's build our thread pool
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(2) {
         pool.enter(|| {
             handle_connection(stream.unwrap()); 
         });
