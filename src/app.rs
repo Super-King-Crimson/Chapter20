@@ -62,7 +62,7 @@ pub fn listen(addr: impl Display + ToSocketAddrs) {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let reader = BufReader::new(&mut stream);
+    let reader = BufReader::new(&stream);
 
     //we've been ignoring the request and just sending data no matter what, let's fix that
     //if the user asks for a url we don't have, we'll return 404 not found
@@ -70,11 +70,13 @@ fn handle_connection(mut stream: TcpStream) {
 
     let uri = HttpRequest::parse(&req_header).unwrap().uri;
 
+    if uri.contains("favicon") {
+        return;
+    }
+
     let mut status = HTTP_OK;
 
-    let path = uri_to_path(uri);
-
-    let html = path
+    let html = uri_to_path(uri)
         .and_then(|path| {
             if Path::new(&path).extension().unwrap().ne("html") {
                 Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Files must be html"))
@@ -93,14 +95,23 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn uri_to_path(uri: String) -> Result<String, std::io::Error> {
-    let path = format!("./routes{uri}");
-
-    let md = fs::metadata(&path)?;
+    let mut path = format!("./routes{uri}");
 
     if path.eq("./routes/") {
         Ok(path + "init.html")
     } else {
-        Ok(if md.is_dir() { path + "/init.html" } else { path })
+        let metadata = fs::metadata(&path)
+            .or_else(|_| {
+                path = format!("{path}.html");
+
+                fs::metadata(&path)
+            })?;
+
+        if metadata.is_dir() {
+            path += "/init.html"; 
+        };
+
+        Ok(path)
     }
 }
 
