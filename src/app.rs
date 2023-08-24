@@ -2,7 +2,7 @@ use std::{
     fmt::Display,
     fs,
     io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream, ToSocketAddrs}, path::Path,
+    net::{TcpListener, TcpStream, ToSocketAddrs}, path::Path, thread, time::Duration,
 };
 
 pub const HTTP_OK: &str = "200 OK";
@@ -97,21 +97,34 @@ fn handle_connection(mut stream: TcpStream) {
 fn uri_to_path(uri: String) -> Result<String, std::io::Error> {
     let mut path = format!("./routes{uri}");
 
-    if path.eq("./routes/") {
-        Ok(path + "init.html")
-    } else {
-        let metadata = fs::metadata(&path)
-            .or_else(|_| {
-                path = format!("{path}.html");
+    //If you open multiple tabs, request slow, then request anything else, the anything else won't load until after the slow
+    //There are several ways to fix this, for example:
+        //single-threaded async I/O
+        //multi-threaded async I/O
+        //fork/join
+        //thread pool
+    //We'll be using a thread pool, but all of these options are possible in Rust
+        //Let's go learn what a thread pool is (thread_pool::explanation::read())
+    match path.as_ref() {
+        "./routes/" => Ok(path + "init.html"),
+        "./routes/slow" => {
+            thread::sleep(Duration::from_secs(5));
+            Ok(path + ".html")
+        },
+        _ => { 
+            let metadata = fs::metadata(&path)
+                .or_else(|_| {
+                    path = format!("{path}.html");
 
-                fs::metadata(&path)
-            })?;
+                    fs::metadata(&path)
+                })?;
 
-        if metadata.is_dir() {
-            path += "/init.html"; 
-        };
+            if metadata.is_dir() {
+                path += "/init.html"; 
+            };
 
-        Ok(path)
+            Ok(path)
+        }
     }
 }
 
