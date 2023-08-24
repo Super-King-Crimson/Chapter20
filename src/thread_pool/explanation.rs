@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub fn read() {
     println!("A thread pool is a group of spawned threads that are waiting and ready to handle a task");
 

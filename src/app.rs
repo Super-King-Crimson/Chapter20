@@ -5,6 +5,8 @@ use std::{
     net::{TcpListener, TcpStream, ToSocketAddrs}, path::Path, thread, time::Duration,
 };
 
+use crate::thread_pool::ThreadPool;
+
 pub const HTTP_OK: &str = "200 OK";
 pub const HTTP_NOT_FOUND: &str = "404 NOT FOUND";
 
@@ -52,20 +54,21 @@ impl HttpRequest {
     }
 }
 
-pub fn listen(addr: impl Display + ToSocketAddrs) {
+pub fn listen(addr: impl Display + ToSocketAddrs, mut pool: ThreadPool) {
     let listener = TcpListener::bind(&addr).unwrap();
     println!("Listening on {}", addr);
 
+    //alright now let's build our thread pool
     for stream in listener.incoming() {
-        handle_connection(stream.unwrap());
+        pool.enter(|| {
+            handle_connection(stream.unwrap()); 
+        });
     }
 }
 
 fn handle_connection(mut stream: TcpStream) {
     let reader = BufReader::new(&stream);
-
-    //we've been ignoring the request and just sending data no matter what, let's fix that
-    //if the user asks for a url we don't have, we'll return 404 not found
+    
     let req_header = reader.lines().next().unwrap().unwrap();
 
     let uri = HttpRequest::parse(&req_header).unwrap().uri;
@@ -97,14 +100,6 @@ fn handle_connection(mut stream: TcpStream) {
 fn uri_to_path(uri: String) -> Result<String, std::io::Error> {
     let mut path = format!("./routes{uri}");
 
-    //If you open multiple tabs, request slow, then request anything else, the anything else won't load until after the slow
-    //There are several ways to fix this, for example:
-        //single-threaded async I/O
-        //multi-threaded async I/O
-        //fork/join
-        //thread pool
-    //We'll be using a thread pool, but all of these options are possible in Rust
-        //Let's go learn what a thread pool is (thread_pool::explanation::read())
     match path.as_ref() {
         "./routes/" => Ok(path + "init.html"),
         "./routes/slow" => {

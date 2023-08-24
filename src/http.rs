@@ -4,7 +4,7 @@ pub mod requests {
     pub fn _explain(verbose: bool) {
         println!("The moment we've all been waiting for... networking!");
 
-        //A HTTP request takes this format:
+        // A HTTP request takes this format:
         /* 
             Method Request-URI HTTP-Version CRLF
             headers CRLF
