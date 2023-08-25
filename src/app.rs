@@ -2,7 +2,7 @@ use std::{
     fmt::Display,
     fs,
     io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream, ToSocketAddrs}, path::Path, thread, time::Duration,
+    net::{TcpListener, TcpStream, ToSocketAddrs}, thread, time::Duration,
 };
 
 use crate::thread_pool::ThreadPool;
@@ -79,13 +79,12 @@ fn handle_connection(mut stream: TcpStream) {
 
     let mut status = HTTP_OK;
 
-    let html = uri_to_path(uri)
+    let path = uri_to_path(uri);
+    println!("{path:?}");
+
+    let html = path
         .and_then(|path| {
-            if Path::new(&path).extension().unwrap().ne("html") {
-                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Files must be html"))
-            } else {
-                fs::read_to_string(path)
-            }
+            fs::read_to_string(path)
         })
         .unwrap_or_else(|_| {
             status = HTTP_NOT_FOUND;
@@ -98,6 +97,13 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn uri_to_path(uri: String) -> Result<String, std::io::Error> {
+    println!("{uri}");
+
+    let path = format!(".{uri}");
+    if fs::metadata(&path).is_ok() {
+        return Ok(path);
+    }
+
     let mut path = format!("./routes{uri}");
 
     match path.as_ref() {
