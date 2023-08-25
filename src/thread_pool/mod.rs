@@ -6,29 +6,25 @@ type Job = Box<dyn FnOnce() + 'static + Send>;
 
 struct Worker {
     thread: Option<JoinHandle<()>>,
-    id: usize,
 }
 
 impl Worker {
-    fn new(reciever: Arc<Mutex<Receiver<Job>>>, id: usize) -> Worker {
+    fn new(reciever: Arc<Mutex<Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || {
             loop {                
                 let job = match reciever.lock().unwrap().recv() {
                     Ok(val) => val,
                     Err(_) => {
-                        println!("Shutting down {id}");
                         break;
                     }
                 };
 
-                println!("{id} got a job");
                 job();
             }
         });
 
         Worker {
-            thread: Some(thread),
-            id
+            thread: Some(thread)
         }
     }
 }
@@ -46,7 +42,7 @@ impl ThreadPool {
         
         let rx: Arc<Mutex<Receiver<Job>>> = Arc::new(Mutex::new(rx));
 
-        let workers = (0..num_threads).into_iter().map(move |id| Worker::new(rx.clone(), id)).collect();
+        let workers = (0..num_threads).into_iter().map(move |_| Worker::new(rx.clone())).collect();
 
         ThreadPool { workers, sender: Some(tx)}
     }
@@ -64,8 +60,6 @@ impl Drop for ThreadPool {
         drop(self.sender.take());
 
         for worker in &mut self.workers {
-            println!("Shutting down worker {}", worker.id); 
-
             //join with the thread to let it finish what it's doing
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();

@@ -59,7 +59,7 @@ pub fn listen(addr: impl Display + ToSocketAddrs, mut pool: ThreadPool) {
     println!("Listening on {}", addr);
 
     //alright now let's build our thread pool
-    for stream in listener.incoming().take(2) {
+    for stream in listener.incoming() {
         pool.enter(|| {
             handle_connection(stream.unwrap()); 
         });
@@ -104,6 +104,10 @@ fn uri_to_path(uri: String) -> Result<String, std::io::Error> {
         "./routes/" => Ok(path + "init.html"),
         "./routes/slow" => {
             thread::sleep(Duration::from_secs(5));
+            Ok(path + ".html")
+        },
+        "./routes/ultraslow" => {
+            thread::sleep(Duration::from_secs(20));
             Ok(path + ".html")
         },
         _ => { 
